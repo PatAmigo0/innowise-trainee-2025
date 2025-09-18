@@ -46,4 +46,4 @@ SELECT
 	MAX(total_hours_rented_l_cities) AS total_hours_rented_in_l_cities,
 	MAX(c2) AS most_popular_ct_in_s_cities,
 	MAX(total_hours_rented_s_cities) AS total_hours_rented_in_s_cities
-FROM temp_null_table
+FROM temp_null_table;
