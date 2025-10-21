@@ -9,9 +9,17 @@ def main():
 
     try:
         for i, task_obj in enumerate(TASK_REGISTRY):
-            print("=" * 80)
+            visible_len = len(task_obj.name())
+            rows = task_obj.name().split('\n')
+
+            if len(rows) > 0:
+                visible_len = max([len(row) for row in rows])
+            dstr = '=' * visible_len
+
+            print('\n')
+            print(dstr)
             print(task_obj.name())
-            print("=" * 80)
+            print(dstr)
 
             task_obj.run()
     finally:
