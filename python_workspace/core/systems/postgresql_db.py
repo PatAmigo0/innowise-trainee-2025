@@ -2,8 +2,8 @@ import os
 import psycopg2 as sql
 from  ..decorators.db_decorators import check_connection
 from ..abstraction.basic_db import DBManager
-from ..queries.basic_queries import save_query_template, insert_query_template
-from ..queries.postgres_queries import headers_check_query_template, get_all_tables_query
+from ..queries.queries_py.basic_queries import save_query_template, insert_query_template
+from ..queries.queries_py.postgres_queries import headers_check_query_template, get_all_tables_query
 
 class PostgresDB(DBManager):
     def __init__(self):

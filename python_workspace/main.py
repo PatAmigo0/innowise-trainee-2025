@@ -1,5 +1,6 @@
 import os
 import sys
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from xml.etree.ElementTree import ElementTree
@@ -9,7 +10,8 @@ import json
 import datetime
 import xml.etree.ElementTree as ET
 from core.systems.postgresql_db import PostgresDB
-from core.queries.task_queries import *
+from core.queries.queries_py.task_queries import basic_queries
+from decimal import Decimal
 
 rooms_path = r".\data\rooms.json"
 students_path = r".\data\students.json"
@@ -26,6 +28,8 @@ def init():
 def fix_type(v):
     if isinstance(v, datetime.date):
         return v.isoformat()
+    elif isinstance(v, Decimal):
+        return float(v)
     return v
 
 
@@ -119,6 +123,8 @@ def export_query_to_file(db: PostgresDB, query: str, report_name: str):
         with open(filepath, "w", encoding="utf-8") as f:
             write_in_file(transformed_data, f, path=filepath)
 
+        print(f"Успех экспорта {report_name}!")
+
     except Exception as e:
         print(f"Ошибка: {e}")
 
@@ -135,10 +141,9 @@ def main():
         export_table_to_file(db, "rooms")
         export_table_to_file(db, "students")
 
-        export_query_to_file(db, query_student_count_by_room, "report_student_count_by_room")
-        export_query_to_file(db, query_rooms_lowest_avg_age, "report_rooms_lowest_avg_age")
-        export_query_to_file(db, query_rooms_max_age_difference, "report_rooms_max_age_difference")
-        export_query_to_file(db, query_rooms_mixed_gender, "report_rooms_mixed_gender")
+        print(basic_queries)
+        for key, query in basic_queries.items():
+            export_query_to_file(db, query, key)
 
 
 if __name__ == "__main__":
