@@ -1,0 +1,172 @@
+version: "3.8"
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.2
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-backend/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres-backend/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/1
+    AIRFLOW__CORE__FERNET_KEY: '${FERNET_KEY}'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+    AIRFLOW_UID: '${AIRFLOW_UID:-50000}'
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+  depends_on:
+    - postgres-backend
+    - redis
+
+volumes:
+  pgdata:
+  pgadmin-data:
+  postgres-backend-db:
+
+services:
+  pagila:
+    image: postgres:16 # Updated to a more recent, stable version than 17
+    container_name: pagila
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456} # Use environment variable
+    volumes:
+      - ./pagila-schema.sql:/docker-entrypoint-initdb.d/1-pagila-schema.sql
+      - ./pagila-schema-jsonb.sql:/docker-entrypoint-initdb.d/1-pagila-schema-jsonb.sql
+      - ./pagila-data.sql:/docker-entrypoint-initdb.d/2-pagila-data.sql
+      - ./restore-pagila-data-jsonb.sh:/docker-entrypoint-initdb.d/3-restore-pagila-data-jsonb.sh
+      - ./pagila-data-yum-jsonb.backup:/docker-entrypoint-initdb.d/pagila-data-yum-jsonb.backup
+      - ./pagila-data-apt-jsonb.backup:/docker-entrypoint-initdb.d/pagila-data-apt-jsonb.backup
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    container_name: pgadmin4
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: root
+    volumes:
+      - "./pgadmin/pgadmin_servers.json:/pgadmin4/servers.json"
+      - pgadmin-data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    depends_on:
+      - pagila
+
+  # --- SPARK SERVICES ---
+  spark-master:
+    image: bitnami/spark:3.5.1-debian-12-r43
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+    ports:
+      - "8081:8080" # Spark UI is on 8081 to avoid conflict with Airflow
+      - "7077:7077"
+    volumes:
+      - ./spark/apps:/opt/bitnami/spark/apps
+      - ./spark/data:/opt/bitnami/spark/data
+
+  spark-worker:
+    image: bitnami/spark:3.5.1-debian-12-r43
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    volumes:
+      - ./spark/apps:/opt/bitnami/spark/apps
+      - ./spark/data:/opt/bitnami/spark/data
+    depends_on:
+      - spark-master
+
+
+  # --- AIRFLOW SERVICES ---
+  postgres-backend:
+    image: postgres:16
+    container_name: postgres-airflow-backend
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "5433:5432" # Expose on a different port to avoid conflict with pagila
+    volumes:
+      - postgres-backend-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2
+    container_name: redis-airflow
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  airflow-init:
+    image: apache/airflow:2.9.2
+    container_name: airflow_init
+    depends_on:
+      - postgres-backend
+    environment:
+      <<: *airflow-common-env
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db init
+        airflow users create -u admin -p admin -r Admin -e admin@example.com -f admin -l user
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow_webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      - airflow-init
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow_scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob", "--hostname", "$$(hostname)"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+    depends_on:
+      - airflow-init
+
+  airflow-worker:
+    <<: *airflow-common
+    container_name: airflow_worker
+    command: celery worker
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "WorkerJob", "--hostname", "$$(hostname)"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+    depends_on:
+      - airflow-init
+
