@@ -1,1 +1,0 @@
-![spark image](image.png)
