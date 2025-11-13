@@ -1,0 +1,20 @@
+[
+  {
+    "$project": {
+      "rating": 1,
+      "day": {
+        "$dateTrunc": {
+          "date": { "$toDate": "$created_date" },
+          "unit": "day"
+        }
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$day",
+      "average_rating": { "$avg": "$rating" }
+    }
+  },
+  { "$sort": { "_id": 1 } }
+]
