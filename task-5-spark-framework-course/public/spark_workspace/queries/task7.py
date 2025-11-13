@@ -22,7 +22,7 @@ class Task(BaseTask):
             .filter(col("return_date").isNotNull()) \
             .withColumn("rental_duration_hours",
                         (col("return_date").cast("long") - col("rental_date").cast("long")) / 3600.0) \
-            .withColumn("rental_duration_hours", F.round(col("rental_duration_hours"), 2))  # Добавлено округление
+            .withColumn("rental_duration_hours", F.round(col("rental_duration_hours"), 2)) 
 
         total_hours_table = cities_with_customers \
             .join(rental_with_duration, "customer_id") \
