@@ -1,16 +1,15 @@
 x-airflow-common: &airflow-common
   build: .
-  env_file: .env
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
     - ./data:/opt/airflow/data
-  user: "${AIRFLOW_UID:-50000}:0"
+  user: "50000:0"
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18
     container_name: airflow-postgres-snowflake
     environment:
       - POSTGRES_USER=airflow
@@ -23,7 +22,6 @@ services:
       interval: 5s
       retries: 5
 
-  # Сам Airflow
   airflow-standalone:
     <<: *airflow-common
     container_name: airflow-standalone-snowflake
