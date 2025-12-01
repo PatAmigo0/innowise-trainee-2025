@@ -1,0 +1,7 @@
+*unsafe.env
+python_workspace/data/output/*.xml
+python_workspace/data/output/*.json
+*.vscode
+tempCodeRunnerFile.py
+__pycache__
+.idea
