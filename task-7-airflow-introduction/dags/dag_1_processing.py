@@ -54,7 +54,7 @@ def _save_processed_data(df: pd.DataFrame, output_path):
 
 with DAG(
     dag_id="dag_1_data_processing",
-    start_date=datetime(2024, 1, 1),
+    start_date=datetime(2025, 10, 23),
     schedule=None,
     catchup=False,
     tags=["task_7", "processing"],
