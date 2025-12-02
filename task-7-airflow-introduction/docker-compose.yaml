@@ -1,15 +1,45 @@
 x-airflow-common: &airflow-common
   build: .
-  env_file: .env
+  image: apache/airflow:3.1.3
+  environment:
+  # --- 1. Ключ шифрования данных в БД (Fernet) ---
+  # Оставляем старый, чтобы не потерять доступ к зашифрованным Connection
+  - AIRFLOW__CORE__FERNET_KEY=46bkPixl-2kM_2P60v0lU1234567890abcdefghijklm=
+  
+  # --- 2. Ключ для Execution API (Worker <-> API Server) ---
+  # ТОТ САМЫЙ HEX-КЛЮЧ, который мы исправили в прошлый раз.
+  - AIRFLOW__API__AUTH_JWT_SECRET=a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef12345678
+  
+  # --- 3. ЕДИНЫЙ СЕКРЕТНЫЙ КЛЮЧ (Решает DeprecationWarning) ---
+  # Airflow 3 требует ключ в секции [api], но по старой памяти ищет в [webserver].
+  # Задаем одну и ту же строку для всех, чтобы сессии и подписи работали везде.
+  - AIRFLOW__API__SECRET_KEY=fix_deprecation_warning_key_12345
+  - AIRFLOW__WEBSERVER__SECRET_KEY=fix_deprecation_warning_key_12345
+  - AIRFLOW__CORE__SECRET_KEY=fix_deprecation_warning_key_12345
+  
+  # --- Настройки Airflow 3 ---
+  - AIRFLOW__CORE__AUTH_MANAGER=airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+  - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+  # URL API сервера (Важно для Scheduler в версии 3.0+)
+  - AIRFLOW__CORE__EXECUTION_API_SERVER_URL=http://airflow-api-server:8080/execution/
+  
+  # --- Подключения ---
+  - AIRFLOW_CONN_FS_DEFAULT=fs://
+  - AIRFLOW_CONN_MONGO_DEFAULT=mongo://mongo:27017/airflow_db
+  - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+  - PYTHONUNBUFFERED=1
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
     - ./data:/opt/airflow/data
+  depends_on:
+      postgres:
+        condition: service_healthy
 
 services:
   postgres:
-    image: postgres:18
+    image: postgres:16
     container_name: airflow-postgres
     environment:
       - POSTGRES_USER=airflow
@@ -22,20 +52,94 @@ services:
       interval: 5s
       retries: 5
 
-  airflow-standalone:
+
+  airflow-init:
     <<: *airflow-common
-    container_name: airflow-standalone
-    command: standalone
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        echo "Проверка подключения к базе данных..."
+        airflow db check
+        
+        echo "Применение миграции"
+        airflow db migrate
+
+        echo "Проверка существования пользователя admin..."
+        if ! airflow users list | grep -q "admin"; then
+          echo "Создание пользователя admin..."
+          airflow users create \
+            --username admin \
+            --firstname Admin \
+            --lastname User \
+            --role Admin \
+            --email admin@admin.com \
+            --password root
+        else
+          echo "Пользователь admin уже существует"
+        fi
+        
+        echo "Инициализация завершена!"
+    container_name: airflow-init-task7
+
+
+  airflow-api-server:
+    <<: *airflow-common
+    command: airflow api-server
+    restart: on-failure
+    container_name: airflow-api-server-task7
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:  
+    <<: *airflow-common
+    command: airflow scheduler
+    restart: on-failure
+    container_name: airflow-scheduler-task7
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      airflow-api-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $${HOSTNAME}"]
       interval: 10s
+      timeout: 10s
+      retries: 5
+
+  airflow-triggerer:
+    <<: *airflow-common
+    command: airflow triggerer
+    restart: on-failure
+    container_name: airflow-triggerer-task7
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      airflow-api-server:
+        condition: service_healthy
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: airflow dag-processor
+    restart: on-failure
+    container_name: airflow-dag-processor-task7
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type DagProcessorJob --hostname $${HOSTNAME}"]
+      interval: 5s
+      timeout: 10s
       retries: 5
     depends_on:
-      postgres:
-        condition: service_healthy
-    user: "${AIRFLOW_UID}"
+      airflow-init:
+        condition: service_completed_successfully
 
   mongo:
     image: mongo:latest

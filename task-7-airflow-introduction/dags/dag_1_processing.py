@@ -3,12 +3,10 @@ import re
 from datetime import datetime
 
 import pandas as pd
-from airflow.decorators import task
-from airflow.models.dag import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.python import BranchPythonOperator
 from airflow.providers.standard.sensors.filesystem import FileSensor
-from airflow.sdk import TaskGroup
+from airflow.sdk import DAG, TaskGroup, task
 from dag_constants import FILE_PATH, PROCESSED_FILE_PATH, processed_dataset
 
 
