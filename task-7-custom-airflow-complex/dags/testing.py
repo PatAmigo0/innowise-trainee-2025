@@ -4,7 +4,7 @@ from airflow.models.taskinstance import TaskInstance
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.standard.operators.python import PythonOperator
-from airflow.sdk import chain, dag, task, task_group  # <-- Импортируем task_group
+from airflow.sdk import chain, dag, task, task_group
 
 
 @task
