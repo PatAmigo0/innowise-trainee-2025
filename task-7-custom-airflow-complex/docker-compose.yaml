@@ -4,6 +4,8 @@ services:
     container_name: task-7.1-postgres
     healthcheck: 
       test: ['CMD', 'pg_isready', '-U', 'airflow']
+      interval: 5s
+      retries: 5
     environment:
       - POSTGRES_USER=airflow
       - POSTGRES_PASSWORD=airflow
@@ -25,6 +27,8 @@ services:
       #- AIRFLOW__DATABSE__SQL_ALCHEMY_SCHEMA=airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      #- AIRFLOW__CORE__SECRET_KEY=UQm9dAerL0GDbQvJp0Cyxo7APwJ0scOFxJKcd51c7Bw
+      #- AIRFLOW__API_AUTH__JWT_SECRET=UQm9dAerL0GDbQvJp0Cyxo7APwJ0scOFxJKcd51c7Bw
     ports:
       - 8080:8080
     depends_on:
