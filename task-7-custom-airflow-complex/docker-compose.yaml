@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: task-7.1-postgres
+    healthcheck: 
+      test: ['CMD', 'pg_isready', '-U', 'airflow']
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    ports:
+      - 5432:5432
+  
+  airflow-standalone:
+    build: .
+    image: tohun/airflow-custom:v1.0
+    command: standalone
+    healthcheck:
+      test: 'curl --fail -v localhost:8080/api/v2/monitor/health'
+      interval: 5s
+      retries: 5
+    container_name: task-7.1-airflow-standalone
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      #- AIRFLOW__DATABSE__SQL_ALCHEMY_SCHEMA=airflow
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+    ports:
+      - 8080:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs/opt/airflow/logs
+    user: 50000:0
