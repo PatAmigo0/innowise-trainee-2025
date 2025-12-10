@@ -32,5 +32,5 @@ services:
         condition: service_healthy
     volumes:
       - ./dags:/opt/airflow/dags
-      - ./logs/opt/airflow/logs
+      - ./logs:/opt/airflow/logs
     user: 50000:0
