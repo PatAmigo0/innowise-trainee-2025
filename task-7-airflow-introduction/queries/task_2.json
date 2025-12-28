@@ -1,0 +1,9 @@
+[
+  {
+    "$match": {
+      "$expr": {
+        "$lt": [{ "$strLenCP": "$content" }, 5]
+      }
+    }
+  }
+]
