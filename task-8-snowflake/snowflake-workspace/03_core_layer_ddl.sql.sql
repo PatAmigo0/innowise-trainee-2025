@@ -1,0 +1,9 @@
+USE SCHEMA RETAIL_DWH.CORE;
+
+CREATE OR REPLACE TABLE DIM_ORDERS (
+    order_id VARCHAR PRIMARY KEY,
+    customer_id VARCHAR,
+    status VARCHAR,
+    order_date DATE,
+    loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
+);
