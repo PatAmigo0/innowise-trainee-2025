@@ -1,0 +1,7 @@
+services:
+  alert-system:
+    build: .
+    container_name: alert_project
+    volumes:
+      - ./data:/app/data
+    restart: on-failure
